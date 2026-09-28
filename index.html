@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111111">
+<title>Оплата криптовалютой</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Arial,Helvetica,sans-serif;background:#f3f3f3;color:#111}
+.card{width:100%;max-width:430px;background:#fff;border-radius:24px;padding:30px 24px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.12)}
+.logo{font-size:32px;font-weight:800;letter-spacing:3px;margin-bottom:8px}
+.subtitle{color:#666;margin-bottom:22px;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:14px}
+.chip{width:auto;margin:0;padding:9px 16px;border-radius:999px;background:#f0f0f0;color:#111;font-size:14px}
+.chip.on{background:#111;color:#fff}
+.label{font-size:13px;color:#777;margin:14px 0 7px}
+.qr{width:230px;height:230px;margin:16px auto;display:block;border-radius:12px}
+.address{word-break:break-all;background:#f5f5f5;border-radius:12px;padding:13px;font-size:13px;line-height:1.45;margin-bottom:6px}
+button{width:100%;border:0;border-radius:13px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px}
+.copy{background:#111;color:#fff}
+.copy:active{transform:scale(.99)}
+.wallet{background:#f0f0f0;color:#111}
+.success{visibility:hidden;margin-top:10px;color:#147a4b;font-weight:700;font-size:14px}
+.warning{margin-top:16px;padding:13px;border-radius:12px;background:#fff7e6;color:#7a5200;font-size:13px;line-height:1.45}
+.footer{margin-top:22px;color:#999;font-size:11px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo" id="name"></div>
+  <div class="subtitle" id="subtitle"></div>
+
+  <div class="label">Монета</div>
+  <div class="chips" id="coins"></div>
+
+  <div id="netBlock">
+    <div class="label">Сеть</div>
+    <div class="chips" id="nets"></div>
+  </div>
+
+  <img class="qr" id="qr" alt="QR-код адреса">
+
+  <div class="label" id="addrLabel"></div>
+  <div class="address" id="address"></div>
+
+  <button class="copy" onclick="copyAddress()">Скопировать адрес</button>
+  <div class="success" id="success">✓ Адрес скопирован</div>
+  <button class="wallet" id="walletBtn" onclick="openWallet()">Открыть кошелёк</button>
+
+  <div class="warning" id="warning"></div>
+  <div class="footer" id="footer"></div>
+</div>
+
+<script src="data.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const S = window.SITE || {coins: []};
+let ci = 0, ni = 0;
+
+function fromHash() {
+  const [sym, n] = decodeURIComponent(location.hash.slice(1)).split("/");
+  const i = S.coins.findIndex(c => c.symbol === sym);
+  if (i >= 0) { ci = i; ni = Math.min(+n || 0, S.coins[i].networks.length - 1); }
+}
+
+function chips(el, items, active, onPick) {
+  el.innerHTML = "";
+  items.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.className = "chip" + (i === active ? " on" : "");
+    b.textContent = t;
+    b.onclick = () => onPick(i);
+    el.appendChild(b);
+  });
+}
+
+function render() {
+  $("name").textContent = S.name;
+  $("subtitle").textContent = S.subtitle;
+  document.title = S.name + " — оплата";
+  $("footer").textContent = S.name;
+  const c = S.coins[ci], n = c.networks[ni];
+
+  chips($("coins"), S.coins.map(x => x.symbol), ci, i => { ci = i; ni = 0; update(); });
+  $("netBlock").classList.toggle("hide", c.networks.length < 2);
+  chips($("nets"), c.networks.map(x => x.network), ni, i => { ni = i; update(); });
+
+  $("qr").src = "https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=" + encodeURIComponent(n.address);
+  $("addrLabel").textContent = "Адрес для получения " + c.symbol + " · " + n.network;
+  $("address").textContent = n.address;
+  $("walletBtn").classList.toggle("hide", !n.uri);
+  $("warning").innerHTML = "⚠️ Отправляйте <strong></strong>. Перед отправкой обязательно проверьте сеть и адрес.";
+  $("warning").querySelector("strong").textContent = "только " + c.symbol + " в сети " + n.network;
+}
+
+function update() {
+  history.replaceState(null, "", "#" + encodeURIComponent(S.coins[ci].symbol) + "/" + ni);
+  render();
+}
+
+async function copyAddress() {
+  const a = S.coins[ci].networks[ni].address;
+  try { await navigator.clipboard.writeText(a); }
+  catch (e) {
+    const t = document.createElement("textarea");
+    t.value = a; document.body.appendChild(t); t.select();
+    document.execCommand("copy"); t.remove();
+  }
+  const s = $("success");
+  s.style.visibility = "visible";
+  setTimeout(() => s.style.visibility = "hidden", 2000);
+}
+
+function openWallet() {
+  const n = S.coins[ci].networks[ni];
+  location.href = n.uri + n.address;
+}
+
+if (S.coins.length) { fromHash(); render(); }
+else document.querySelector(".card").textContent = "Нет добавленных монет";
+</script>
+</body>
+</html>
